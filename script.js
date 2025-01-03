@@ -6,7 +6,35 @@ var camera = new THREE.PerspectiveCamera(
   0.1,
   1000
 );
-camera.position.set(9, 0.3, 3); // Set camera position 0.1 units above the grid
+camera.position.set(0, -5, 10);
+
+scene.add(new THREE.AmbientLight(0xffffff, 1)); // Add ambient light
+const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+directionalLight.position.set(5, 5, 5);
+scene.add(directionalLight);
+
+const loader = new THREE.GLTFLoader();
+
+loader.load(
+  "fps_rig.glb",
+  function (gltf) {
+    const model = gltf.scene;
+    // positioning and rotation of the model
+    model.scale.set(1, 1, 1.2);
+    model.position.set(-1, -3, -5);
+    model.rotation.set(0, 1.6, 0);
+
+    // Add model as child of camera
+    camera.add(model);
+    scene.add(camera); // Make sure camera is in scene
+  },
+  function (xhr) {
+    console.log((xhr.loaded / xhr.total) * 100 + "% loaded");
+  },
+  function (error) {
+    console.error("An error happened:", error);
+  }
+);
 
 // Create the renderer
 var renderer = new THREE.WebGLRenderer({ alpha: true, depth: true });
@@ -26,9 +54,9 @@ var raycaster = new THREE.Raycaster();
 var mouse = new THREE.Vector2();
 var particles = [];
 var triangles = [];
-let cubes = [];
+let spheres = [];
 
-var hasCubeMoved = false; // Flag to track if the cube has already been moved
+var hassphereMoved = false; // Flag to track if the sphere has already been moved
 
 // Gravity effect variables
 var gravity = new THREE.Vector3(0, -0.01, 0); // Adjust the gravity strength as needed
@@ -37,118 +65,82 @@ var maxGravityDistance = 2; // Adjust the maximum distance affected by gravity a
 // Add PointerLockControls
 var controls = new THREE.PointerLockControls(camera, document.body);
 
-// Create a grid
-var gridHelper = new THREE.GridHelper(20, 20);
-
-// Set the color of the grid lines to white
-gridHelper.material.color.set(0xffffff);
-
-scene.add(gridHelper);
-
-// Create a plane geometry with the same size as the grid
+// create a plane geometry with the same size as the grid
 var planeGeometry = new THREE.PlaneGeometry(20, 20);
 
-// Create a blue material
+// create a blue material
 var blueMaterial = new THREE.MeshBasicMaterial({
   color: 0x0000ff,
   side: THREE.DoubleSide,
 });
 
-// Create a plane mesh with the geometry and material
-var planeMesh = new THREE.Mesh(planeGeometry, blueMaterial);
-// Rotate the grid by 90 degrees
-planeMesh.rotation.x = Math.PI / 2;
-// Set the position of the plane to align with the grid
-planeMesh.position.copy(gridHelper.position);
-//scene.add(planeMesh);
-
-// Create a cube
-var geometry = new THREE.BoxGeometry(1, 1, 1);
+var geometry = new THREE.SphereGeometry(1, 32, 32);
 var material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
 
-for (var i = 0; i < 5; i++) {
-  var cube = new THREE.Mesh(geometry, material);
-  cube.position.set(0, 0.5, 0); // Set cube position 0.5 units above the grid
-  scene.add(cube);
-  cubes.push(cube);
+const MIN_SPAWN_DISTANCE = 10; // min distance from camera
+const spawnPlaneGeometry = new THREE.PlaneGeometry(40, 20);
+const spawnPlaneMaterial = new THREE.MeshBasicMaterial({
+  color: 0x444444,
+  transparent: true,
+  opacity: 0,
+  side: THREE.DoubleSide,
+});
+const spawnPlane = new THREE.Mesh(spawnPlaneGeometry, spawnPlaneMaterial);
+// Position plane
+spawnPlane.position.set(0, 8, -15);
+spawnPlane.rotation.x = Math.PI / 90;
+// Face plane towards player
+spawnPlane.rotation.y = Math.PI;
+scene.add(spawnPlane);
+
+function getValidSpawnPosition() {
+  return new THREE.Vector3(
+    (Math.random() - 0.5) * spawnPlane.geometry.parameters.width,
+    (Math.random() - 0.5) * spawnPlane.geometry.parameters.height +
+      spawnPlane.position.y,
+    spawnPlane.position.z
+  );
 }
 
-// Set camera to face cube position
-camera.lookAt(cube.position);
+function respawnSphere(sphere) {
+  const newPosition = getValidSpawnPosition();
+  sphere.position.copy(newPosition);
+}
+
+// Create initial spheres (single loop)
+for (var i = 0; i < 5; i++) {
+  var sphere = new THREE.Mesh(geometry, material);
+  const spawnPosition = getValidSpawnPosition();
+  sphere.position.copy(spawnPosition);
+  scene.add(sphere);
+  spheres.push(sphere);
+}
+
+// Update camera to look at center point instead of last sphere
+camera.lookAt(new THREE.Vector3(0, 0, 0));
 
 // Set up pointer lock controls
-var blocker = document.getElementById("blocker");
+var container = document.getElementById("container");
 var instructions = document.getElementById("instructions");
-var playButton = document.getElementById("playButton");
+var play = document.getElementById("startDiv");
 
-playButton.addEventListener("click", function () {
+play.addEventListener("click", function () {
   controls.lock();
 });
 
 controls.addEventListener("lock", function () {
   instructions.style.display = "none";
-  blocker.style.display = "none";
-  document.getElementById("crosshair").style.display = "block"; // Show the crosshair when screen is locked
+  container.style.display = "none";
+  document.getElementById("crosshair").style.display = "block"; //show crosshair when start
 });
 
 controls.addEventListener("unlock", function () {
-  blocker.style.display = "block";
+  container.style.display = "block";
   instructions.style.display = "";
-  document.getElementById("crosshair").style.display = "none"; // Hide the crosshair when screen is unlocked
+  document.getElementById("crosshair").style.display = "none"; //hide crosshair when start
 });
 
 scene.add(controls.getObject());
-
-// Keyboard controls
-var moveForward = false;
-var moveBackward = false;
-var moveLeft = false;
-var moveRight = false;
-
-var onKeyDown = function (event) {
-  switch (event.keyCode) {
-    case 38: // up arrow
-    case 87: // W key
-      moveForward = true;
-      break;
-    case 37: // left arrow
-    case 65: // A key
-      moveLeft = true;
-      break;
-    case 40: // down arrow
-    case 83: // S key
-      moveBackward = true;
-      break;
-    case 39: // right arrow
-    case 68: // D key
-      moveRight = true;
-      break;
-  }
-};
-
-var onKeyUp = function (event) {
-  switch (event.keyCode) {
-    case 38: // up arrow
-    case 87: // W key
-      moveForward = false;
-      break;
-    case 37: // left arrow
-    case 65: // A key
-      moveLeft = false;
-      break;
-    case 40: // down arrow
-    case 83: // S key
-      moveBackward = false;
-      break;
-    case 39: // right arrow
-    case 68: // D key
-      moveRight = false;
-      break;
-  }
-};
-
-document.addEventListener("keydown", onKeyDown);
-document.addEventListener("keyup", onKeyUp);
 
 // Check collision with the grid
 function checkCollision(position) {
@@ -176,38 +168,6 @@ function animate() {
 
   checkParticleCollision();
 
-  if (controls.isLocked) {
-    var delta = 0.03;
-
-    if (moveForward) {
-      controls.moveForward(delta);
-      if (checkCollision(controls.getObject().position)) {
-        controls.moveForward(-delta); // Move back to the previous position
-      }
-    }
-
-    if (moveBackward) {
-      controls.moveForward(-delta);
-      if (checkCollision(controls.getObject().position)) {
-        controls.moveForward(delta); // Move back to the previous position
-      }
-    }
-
-    if (moveLeft) {
-      controls.moveRight(-delta);
-      if (checkCollision(controls.getObject().position)) {
-        controls.moveRight(delta); // Move back to the previous position
-      }
-    }
-
-    if (moveRight) {
-      controls.moveRight(delta);
-      if (checkCollision(controls.getObject().position)) {
-        controls.moveRight(-delta); // Move back to the previous position
-      }
-    }
-  }
-
   updateTriangles();
 
   renderer.render(scene, camera);
@@ -222,12 +182,12 @@ function removeParticle(particle) {
 
 function createParticle() {
   playLaserSound();
-  var geometry = new THREE.SphereGeometry(0.05, 16, 16);
+  var geometry = new THREE.SphereGeometry(0.02, 16, 16);
   var material = new THREE.MeshBasicMaterial({ color: 0xadd8e6 });
   var particle = new THREE.Mesh(geometry, material);
   particle.position.copy(camera.position);
   particle.initialDirection = camera.getWorldDirection(new THREE.Vector3());
-  particle.velocity = particle.initialDirection.clone().multiplyScalar(0.25);
+  particle.velocity = particle.initialDirection.clone().multiplyScalar(0.9);
   scene.add(particle);
   particles.push(particle);
 }
@@ -273,15 +233,15 @@ document.addEventListener("mousemove", onMouseMove, false);
 // Declare a variable to count collided particles
 var collidedParticles = 0;
 
-var hasCubeMoved = false; // Flag to track if the cube has already been moved
+var hasSphereMoved = false; // Flag to track if the sphere has already been moved
 
-// Check collision between particles and cubes
+// Check collision between particles and spheres
 function checkParticleCollision() {
-  for (var j = 0; j < cubes.length; j++) {
-    var cube = cubes[j];
+  for (var j = 0; j < spheres.length; j++) {
+    var sphere = spheres[j];
     var isColliding = false;
 
-    if (cube.visible) {
+    if (sphere.visible) {
       for (var i = 0; i < particles.length; i++) {
         var particle = particles[i];
         var particlePosition = particle.position;
@@ -293,54 +253,42 @@ function checkParticleCollision() {
           particlePosition,
           particleEdge.sub(particlePosition).normalize()
         );
-        var intersects = raycaster.intersectObject(cube);
+        var intersects = raycaster.intersectObject(sphere);
 
         if (intersects.length === 1) {
-          // Particle collided with the cube
+          // Particle collided with the sphere
           isColliding = true;
           break;
         }
       }
     }
 
-    // Set cube color and visibility based on collision status
+    // sphere collision detection
     if (isColliding) {
-      // Cube is red during collision
-      cube.material.color.set(0xff0000);
-      explosion(cube);
-      moveCubeRandomly(cube);
-      hasCubeMoved = false; // Reset the flag when the cube is hidden
+      explosion(sphere);
+      respawnSphere(sphere);
+      hassphereMoved = false; // reset the flag when sphere is hidden
     } else {
-      // Cube is green when there is no collision
-      cube.material.color.set(0x00ff00);
+      // sphere is green when there is no collision
+      sphere.material.color.set(0x00ff00);
 
-      // Check if all particles have been removed and the cube has not moved
-      if (collidedParticles === particles.length && !hasCubeMoved) {
+      // Check if all particles have been removed and the sphere has not moved
+      if (collidedParticles === particles.length && !hassphereMoved) {
         collidedParticles = 0; // Reset the collided particles counter
-        hasCubeMoved = true; // Set the flag to indicate that the cube has been moved
+        hassphereMoved = true; // Set the flag to indicate that the sphere has been moved
       }
     }
   }
 }
 
-// Move the cube to a random location on the grid
-function moveCubeRandomly(cube) {
-  var gridSize = 20; // Adjust the grid size as desired
-  var randomX = Math.floor(Math.random() * gridSize) - gridSize / 2;
-  var randomZ = Math.floor(Math.random() * gridSize) - gridSize / 2;
-
-  cube.position.x = randomX;
-  cube.position.z = randomZ;
-}
-
 // Create an explosion of small triangles
-function explosion(cube) {
+function explosion(sphere) {
   playExplosionSound();
 
   var explosionCount = 50;
 
   for (var i = 0; i < explosionCount; i++) {
-    var triangle = createTriangle(cube);
+    var triangle = createTriangle(sphere);
     scene.add(triangle);
     triangles.push(triangle); // Add the triangle to the triangles array
 
@@ -350,22 +298,22 @@ function explosion(cube) {
         Math.random() * 2 - 1,
         Math.random() * 2 - 1
       ).normalize(),
-      speed: Math.random() * 0.05 + 0.01, // Random speed
+      speed: Math.random() * 0.05 + 0.01,
       rotationAxis: new THREE.Vector3(
         Math.random(),
         Math.random(),
         Math.random()
       ).normalize(),
-      rotationSpeed: Math.random() * 0.1 + 0.005, // Random rotation speed
-      distance: 0, // Distance traveled by the triangle
-      remove: false, // Flag to mark if the triangle should be removed
-      parentCube: cube, // Reference to the collided cube
+      rotationSpeed: Math.random() * 0.1 + 0.005,
+      distance: 0, // distance traveled by the triangle
+      remove: false, // flag to mark if the triangle should be removed
+      parentsphere: sphere, // reference to the collided sphere
     };
   }
 }
 
 // Create a small triangle
-function createTriangle(cube) {
+function createTriangle(sphere) {
   var geometry = new THREE.BufferGeometry();
   var vertices = new Float32Array([-0.1, 0, 0, 0.1, 0, 0, 0, 0.1, 0]);
   var indices = new Uint16Array([0, 1, 2]);
@@ -374,14 +322,14 @@ function createTriangle(cube) {
   geometry.setIndex(new THREE.BufferAttribute(indices, 1));
 
   var material = new THREE.MeshBasicMaterial({
-    color: 0xffff00,
+    color: 0xff0000,
     side: THREE.DoubleSide,
   });
 
   var triangle = new THREE.Mesh(geometry, material);
 
-  // Set initial position at the center of the collided cube
-  triangle.position.copy(cube.position);
+  // Set initial position at the center of the collided sphere
+  triangle.position.copy(sphere.position);
 
   // Set the rotation to face the camera
   triangle.lookAt(camera.position);
@@ -455,65 +403,6 @@ function loadAudioFile(url, callback) {
   request.send();
 }
 
-// Function to play the music
-function playMusic() {
-  if (!audioContext) {
-    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-  }
-
-  if (!musicBuffer) {
-    loadAudioFile(
-      "https://www.shanebrumback.com/sounds/first-person-shooter-music.wav",
-      function (buffer) {
-        musicBuffer = buffer;
-        playLoopedSound(buffer, 0.35);
-        isMusicPlaying = true;
-      }
-    );
-  } else {
-    if (isMusicPlaying) {
-      pauseSound();
-      isMusicPlaying = false;
-    } else {
-      resumeSound();
-      isMusicPlaying = true;
-    }
-  }
-}
-
-// Function to play a sound in a loop with a specific volume
-function playLoopedSound(buffer, volume) {
-  musicSource = audioContext.createBufferSource();
-  musicSource.buffer = buffer;
-  musicSource.loop = true; // Enable looping
-  var gainNode = audioContext.createGain();
-  gainNode.gain.setValueAtTime(0, audioContext.currentTime); // Set initial volume to 0
-  gainNode.gain.linearRampToValueAtTime(volume, audioContext.currentTime + 2); // Gradually increase volume to desired level (adjust time as needed)
-  musicSource.connect(gainNode);
-  gainNode.connect(audioContext.destination);
-
-  // Delay the start of the audio source
-  musicSource.start(audioContext.currentTime + 0.1); // Adjust the delay as needed
-
-  // Note: You can adjust the delay time and volume ramping to find the appropriate values that work best for your audio files.
-}
-
-// Function to pause the music
-function pauseSound() {
-  if (musicSource) {
-    musicSource.stop();
-    musicSource.disconnect();
-    musicSource = null;
-  }
-}
-
-// Function to resume the music
-function resumeSound() {
-  if (musicBuffer) {
-    playLoopedSound(musicBuffer, 0.35);
-  }
-}
-
 // Function to play the laser sound
 function playLaserSound() {
   if (!audioContext) {
@@ -521,34 +410,27 @@ function playLaserSound() {
   }
 
   if (!laserSoundBuffer) {
-    loadAudioFile(
-      "https://www.shanebrumback.com/sounds/laser.wav",
-      function (buffer) {
-        laserSoundBuffer = buffer;
-        playSound(buffer, 1);
-      }
-    );
+    loadAudioFile("556.mp3", function (buffer) {
+      laserSoundBuffer = buffer;
+      playSound(buffer, 0.2);
+    });
   } else {
-    playSound(laserSoundBuffer, 1);
+    playSound(laserSoundBuffer, 0.2);
   }
 }
 
-// Function to play the explosion sound
 function playExplosionSound() {
   if (!audioContext) {
     audioContext = new (window.AudioContext || window.webkitAudioContext)();
   }
 
   if (!explosionSoundBuffer) {
-    loadAudioFile(
-      "https://www.shanebrumback.com/sounds/explosion.wav",
-      function (buffer) {
-        explosionSoundBuffer = buffer;
-        playSound(buffer, 0.25); // Adjust the volume here (0.5 = 50% volume)
-      }
-    );
+    loadAudioFile("tap.wav", function (buffer) {
+      explosionSoundBuffer = buffer;
+      playSound(buffer, 1.2);
+    });
   } else {
-    playSound(explosionSoundBuffer, 0.25); // Adjust the volume here (0.5 = 50% volume)
+    playSound(explosionSoundBuffer, 1.2);
   }
 }
 
@@ -563,18 +445,3 @@ function playSound(buffer, volume) {
   gainNode.connect(audioContext.destination);
   source.start(0);
 }
-
-// Event listener for key press
-document.addEventListener("keydown", function (event) {
-  if (event.key === "m" || event.key === "M") {
-    playMusic();
-  } else if (event.key === " ") {
-    if (controls.isLocked) {
-      event.preventDefault(); // Prevent default action of spacebar
-      createParticle();
-      playLaserSound();
-    }
-  } else if (event.key === "e" || event.key === "E") {
-    playExplosionSound();
-  }
-});

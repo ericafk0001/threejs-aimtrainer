@@ -7,31 +7,35 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <div id="blocker">
+    <div id="container">
       <div id="instructions">
-        <div id="playButton">
-          Play Now
+        <div id="startDiv">
+          Click to Start
           <p>
             ESC - Menu
             <br />
-            WASF ARROWS - Move
-            <br />
             LEFT MOUSE - Fire
             <br />
-            M - Play / Pause Music
+            Sensitivity: <span id="sensitivity">1</span>
+            <br />
+            <input
+              type="range"
+              id="sensitivitySlider"
+              min="0.1"
+              max="2"
+              step="0.1"
+              value="1"
+            />
           </p>
         </div>
       </div>
     </div>
-    <img
-      id="crosshair"
-      src="https://www.shanebrumback.com/images/reticle.png"
-      alt="Crosshair"
-    />
+    <img id="crosshair" src="crosshair.png" alt="Crosshair" />
 
     <script src="https://cdn.jsdelivr.net/npm/three@latest/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@latest/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@latest/examples/js/controls/PointerLockControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@latest/examples/js/loaders/GLTFLoader.js"></script>
     <script type="module" src="script.js"></script>
   </body>
 </html>
