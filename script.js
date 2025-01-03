@@ -1,3 +1,41 @@
+let difficulty = 1;
+
+function changeDifficulty(difficulty) {
+  const difficultyText = document.getElementById("difficulty");
+
+  switch (difficulty) {
+    case 1:
+      difficultyText.textContent = "Easy";
+      spheres.forEach((sphere) => {
+        sphere.visible = true;
+        sphere.scale.set(1.5, 1.5, 1.5);
+      });
+      break;
+    case 2:
+      difficultyText.textContent = "Medium";
+      spheres.forEach((sphere) => {
+        sphere.visible = Math.random() < 0.5;
+        sphere.scale.set(1, 1, 1);
+      });
+      break;
+    case 3:
+      difficultyText.textContent = "Hard";
+      spheres.forEach((sphere) => {
+        sphere.visible = Math.random() < 0.75;
+        sphere.scale.set(0.5, 0.5, 0.5);
+      });
+      break;
+  }
+}
+
+document.addEventListener("keydown", function (event) {
+  if (event.key === "i" || event.key === "I") {
+    difficulty = difficulty === 3 ? 1 : difficulty + 1;
+    console.log(difficulty);
+    changeDifficulty(difficulty);
+  }
+});
+
 // Set up the scene
 var scene = new THREE.Scene();
 var camera = new THREE.PerspectiveCamera(
@@ -74,7 +112,7 @@ var blueMaterial = new THREE.MeshBasicMaterial({
   side: THREE.DoubleSide,
 });
 
-var geometry = new THREE.SphereGeometry(1, 32, 32);
+var geometry = new THREE.SphereGeometry(1.4, 32, 32);
 var material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
 
 const MIN_SPAWN_DISTANCE = 10; // min distance from camera
