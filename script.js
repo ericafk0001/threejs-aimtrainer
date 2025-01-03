@@ -100,7 +100,6 @@ var hassphereMoved = false; // Flag to track if the sphere has already been move
 var gravity = new THREE.Vector3(0, -0.01, 0); // Adjust the gravity strength as needed
 var maxGravityDistance = 2; // Adjust the maximum distance affected by gravity as needed
 
-// Add PointerLockControls
 var controls = new THREE.PointerLockControls(camera, document.body);
 
 // create a plane geometry with the same size as the grid
@@ -160,7 +159,7 @@ camera.lookAt(new THREE.Vector3(0, 0, 0));
 // Set up pointer lock controls
 var container = document.getElementById("container");
 var instructions = document.getElementById("instructions");
-var play = document.getElementById("startDiv");
+var play = document.getElementById("startBtn");
 
 play.addEventListener("click", function () {
   controls.lock();
@@ -245,9 +244,8 @@ function updateParticles() {
 }
 
 function onMouseDown(event) {
-  event.preventDefault();
-
   if (controls.isLocked) {
+    event.preventDefault();
     // Particle creation is allowed only when controls are locked
     if (event.button === 0) {
       createParticle();
@@ -258,11 +256,24 @@ function onMouseDown(event) {
 function onMouseMove(event) {
   event.preventDefault();
 
-  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+  const sensitivityValue = parseFloat(
+    document.getElementById("sensitivitySlider").value
+  );
+  const sensitivity = sensitivityValue * 1000;
+
+  mouse.x = ((event.clientX / window.innerWidth) * 2 - 1) * sensitivity;
+  mouse.y = (-(event.clientY / window.innerHeight) * 2 + 1) * sensitivity;
 
   raycaster.setFromCamera(mouse, camera);
 }
+
+// Add sensitivity slider listener
+document
+  .getElementById("sensitivitySlider")
+  .addEventListener("input", function () {
+    const sensitivity = parseFloat(this.value) * 10;
+    document.getElementById("sensitivity").textContent = sensitivity.toFixed(2);
+  });
 
 // Mouse click event listener
 document.addEventListener("mousedown", onMouseDown);

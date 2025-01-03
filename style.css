@@ -34,12 +34,16 @@ canvas {
 
 #startDiv {
   font-family: "Inter", Arial, Helvetica, sans-serif;
-  font-size: 6rem;
+  font-size: 3rem;
   color: white;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.75);
   text-align: center;
   transform: translate(-50%, -50%);
   white-space: nowrap;
+}
+
+#sensitivitySlider {
+  z-index: 69324525325324534534534534;
 }
 
 p {
