@@ -1,4 +1,11 @@
 let difficulty = 1;
+let isRecoiling = false;
+let recoilProgress = 0;
+const RECOIL_AMOUNT = 0.1;
+const RECOIL_SPEED = 0.3;
+let modelGroup;
+let initialModelRotation = 0;
+let score = 0;
 
 function changeDifficulty(difficulty) {
   const difficultyText = document.getElementById("difficulty");
@@ -57,12 +64,13 @@ loader.load(
   "fps_rig.glb",
   function (gltf) {
     const model = gltf.scene;
+    modelGroup = model;
     // positioning and rotation of the model
     model.scale.set(1, 1, 1.2);
     model.position.set(-1, -3, -5);
     model.rotation.set(0, 1.6, 0);
 
-    // Add model as child of camera
+    initialModelRotation = model.rotation.x;
     camera.add(model);
     scene.add(camera); // Make sure camera is in scene
   },
@@ -179,27 +187,24 @@ controls.addEventListener("unlock", function () {
 
 scene.add(controls.getObject());
 
-// Check collision with the grid
-function checkCollision(position) {
-  var gridSize = 20;
-  var halfGridSize = gridSize / 2;
-  var margin = 0.1;
-
-  if (
-    position.x < -halfGridSize + margin ||
-    position.x > halfGridSize - margin ||
-    position.z < -halfGridSize + margin ||
-    position.z > halfGridSize - margin
-  ) {
-    return true; // Collision detected
-  }
-
-  return false; // No collision
-}
-
 // Render loop
 function animate() {
   requestAnimationFrame(animate);
+
+  if (isRecoiling && modelGroup) {
+    if (recoilProgress < 1) {
+      recoilProgress += RECOIL_SPEED;
+      modelGroup.rotation.x += RECOIL_AMOUNT * RECOIL_SPEED;
+    } else if (recoilProgress < 2) {
+      recoilProgress += RECOIL_SPEED;
+      modelGroup.rotation.x =
+        initialModelRotation - RECOIL_AMOUNT * (2 - recoilProgress);
+    } else {
+      isRecoiling = false;
+      recoilProgress = 0;
+      modelGroup.rotation.x = initialModelRotation;
+    }
+  }
 
   updateParticles();
 
@@ -230,16 +235,9 @@ function createParticle() {
 }
 
 function updateParticles() {
-  var distanceThreshold = 20;
-
   for (var i = particles.length - 1; i >= 0; i--) {
     var particle = particles[i];
     particle.position.add(particle.velocity);
-
-    var distance = particle.position.distanceTo(camera.position);
-    if (distance > distanceThreshold) {
-      removeParticle(particle);
-    }
   }
 }
 
@@ -249,31 +247,46 @@ function onMouseDown(event) {
     // Particle creation is allowed only when controls are locked
     if (event.button === 0) {
       createParticle();
+      isRecoiling = true;
+      recoilProgress = 0;
     }
   }
 }
 
 function onMouseMove(event) {
-  event.preventDefault();
+  if (controls.isLocked) {
+    event.preventDefault();
 
-  const sensitivityValue = parseFloat(
-    document.getElementById("sensitivitySlider").value
-  );
-  const sensitivity = sensitivityValue * 1000;
+    const sensitivity = 0.001;
 
-  mouse.x = ((event.clientX / window.innerWidth) * 2 - 1) * sensitivity;
-  mouse.y = (-(event.clientY / window.innerHeight) * 2 + 1) * sensitivity;
+    const movementX =
+      event.movementX || event.mozMovementX || event.webkitMovementX || 0;
+    const movementY =
+      event.movementY || event.mozMovementY || event.webkitMovementY || 0;
 
-  raycaster.setFromCamera(mouse, camera);
+    // Apply to camera rotation directly
+    camera.rotation.y -= movementX * sensitivity;
+    camera.rotation.x -= movementY * sensitivity;
+
+    // Clamp vertical rotation
+    camera.rotation.x = Math.max(
+      -Math.PI / 2,
+      Math.min(Math.PI / 2, camera.rotation.x)
+    );
+
+    // Update raycaster
+    raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+  }
 }
 
-// Add sensitivity slider listener
-document
-  .getElementById("sensitivitySlider")
-  .addEventListener("input", function () {
-    const sensitivity = parseFloat(this.value) * 10;
-    document.getElementById("sensitivity").textContent = sensitivity.toFixed(2);
-  });
+document.removeEventListener("mousemove", onMouseMove);
+document.addEventListener("pointerlockchange", () => {
+  if (document.pointerLockElement) {
+    document.addEventListener("mousemove", onMouseMove, false);
+  } else {
+    document.removeEventListener("mousemove", onMouseMove, false);
+  }
+});
 
 // Mouse click event listener
 document.addEventListener("mousedown", onMouseDown);
@@ -283,6 +296,14 @@ document.addEventListener("mousemove", onMouseMove, false);
 var collidedParticles = 0;
 
 var hasSphereMoved = false; // Flag to track if the sphere has already been moved
+
+function updateScore(hit) {
+  if (hit) {
+    score += 1;
+  }
+
+  document.getElementById("score").textContent = score;
+}
 
 // Check collision between particles and spheres
 function checkParticleCollision() {
@@ -307,6 +328,8 @@ function checkParticleCollision() {
         if (intersects.length === 1) {
           // Particle collided with the sphere
           isColliding = true;
+          updateScore(true);
+          removeParticle(particle);
           break;
         }
       }
@@ -318,6 +341,7 @@ function checkParticleCollision() {
       respawnSphere(sphere);
       hassphereMoved = false; // reset the flag when sphere is hidden
     } else {
+      updateScore(false);
       // sphere is green when there is no collision
       sphere.material.color.set(0x00ff00);
 
@@ -434,7 +458,6 @@ var audioContext = null;
 var musicBuffer = null;
 var laserSoundBuffer = null;
 var explosionSoundBuffer = null;
-var isMusicPlaying = false;
 var musicSource = null;
 
 // Function to load audio files
